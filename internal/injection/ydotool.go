@@ -3,7 +3,6 @@ package injection
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,18 +24,13 @@ func (y *ydotoolBackend) Available() error {
 		return fmt.Errorf("ydotool not found: %w (install ydotool package)", err)
 	}
 
-	// Check if ydotoold is running by checking socket
+	// Check if ydotoold is running by checking socket exists
+	// Note: ydotoold uses SOCK_DGRAM, not SOCK_STREAM, so we can't dial it
+	// Just verify the socket file exists - ydotool command will handle the rest
 	socketPath := y.getSocketPath()
 	if socketPath == "" {
 		return fmt.Errorf("ydotoold socket not found - ensure ydotoold is running")
 	}
-
-	// Try to connect to verify daemon is responsive
-	conn, err := net.DialTimeout("unix", socketPath, 500*time.Millisecond)
-	if err != nil {
-		return fmt.Errorf("ydotoold not responding at %s: %w", socketPath, err)
-	}
-	conn.Close()
 
 	return nil
 }
