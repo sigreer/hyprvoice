@@ -39,13 +39,16 @@ type Pipeline interface {
 	Status() Status
 	GetActionCh() chan<- Action
 	GetErrorCh() <-chan PipelineError
+	SetWindowAddress(address string)
+	GetWindowAddress() string
 }
 
 type pipeline struct {
-	status   Status
-	actionCh chan Action
-	errorCh  chan PipelineError
-	config   *config.Config
+	status        Status
+	actionCh      chan Action
+	errorCh       chan PipelineError
+	config        *config.Config
+	windowAddress string
 
 	mu       sync.RWMutex
 	wg       sync.WaitGroup
@@ -228,7 +231,8 @@ func (p *pipeline) handleInjectAction(ctx context.Context, recorder *recording.R
 
 	injector := injection.NewInjector(p.config.ToInjectionConfig())
 
-	if err := injector.Inject(ctx, transcriptionText); err != nil {
+	windowAddress := p.GetWindowAddress()
+	if err := injector.Inject(ctx, transcriptionText, windowAddress); err != nil {
 		p.sendError("Injection Error", "Failed to inject text", err)
 	} else {
 		log.Printf("Pipeline: Text injection completed successfully")
@@ -245,4 +249,16 @@ func (p *pipeline) Stop() {
 		}
 	})
 	p.wg.Wait()
+}
+
+func (p *pipeline) SetWindowAddress(address string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.windowAddress = address
+}
+
+func (p *pipeline) GetWindowAddress() string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.windowAddress
 }
