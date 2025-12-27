@@ -3,10 +3,12 @@ package daemon
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -183,7 +185,19 @@ func (d *Daemon) toggle() {
 	switch d.status() {
 	case pipeline.Idle:
 		config := d.configMgr.GetConfig()
+		
+		// Capture active window when recording starts
+		windowAddress := d.getActiveWindow()
+		if windowAddress != "" {
+			log.Printf("Daemon: Captured active window address: %s", windowAddress)
+		} else {
+			log.Printf("Daemon: Failed to capture active window, continuing without window tracking")
+		}
+		
 		p := pipeline.New(config)
+		if windowAddress != "" {
+			p.SetWindowAddress(windowAddress)
+		}
 		p.Run(d.ctx)
 
 		d.mu.Lock()
@@ -241,4 +255,24 @@ func (d *Daemon) monitorPipelineErrors(p pipeline.Pipeline) {
 			return
 		}
 	}
+}
+
+// getActiveWindow retrieves the address of the currently active window using hyprctl
+func (d *Daemon) getActiveWindow() string {
+	cmd := exec.Command("hyprctl", "-j", "activewindow")
+	output, err := cmd.Output()
+	if err != nil {
+		log.Printf("Daemon: Failed to get active window: %v", err)
+		return ""
+	}
+
+	var window struct {
+		Address string `json:"address"`
+	}
+	if err := json.Unmarshal(output, &window); err != nil {
+		log.Printf("Daemon: Failed to parse active window JSON: %v", err)
+		return ""
+	}
+
+	return window.Address
 }
