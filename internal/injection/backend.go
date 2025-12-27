@@ -9,5 +9,5 @@ import (
 type Backend interface {
 	Name() string
 	Available() error
-	Inject(ctx context.Context, text string, timeout time.Duration) error
+	Inject(ctx context.Context, text string, timeout time.Duration, windowAddress string) error
 }

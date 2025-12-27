@@ -8,7 +8,7 @@ import (
 )
 
 type Injector interface {
-	Inject(ctx context.Context, text string) error
+	Inject(ctx context.Context, text string, windowAddress string) error
 }
 
 type Config struct {
@@ -51,7 +51,7 @@ func NewInjector(config Config) Injector {
 	}
 }
 
-func (i *injector) Inject(ctx context.Context, text string) error {
+func (i *injector) Inject(ctx context.Context, text string, windowAddress string) error {
 	if text == "" {
 		return fmt.Errorf("cannot inject empty text")
 	}
@@ -60,7 +60,7 @@ func (i *injector) Inject(ctx context.Context, text string) error {
 	var lastErr error
 	for _, backend := range i.backends {
 		timeout := i.getTimeout(backend.Name())
-		err := backend.Inject(ctx, text, timeout)
+		err := backend.Inject(ctx, text, timeout, windowAddress)
 		if err == nil {
 			log.Printf("Injection: success via %s", backend.Name())
 			return nil

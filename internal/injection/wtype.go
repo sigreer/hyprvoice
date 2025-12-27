@@ -34,7 +34,7 @@ func (w *wtypeBackend) Available() error {
 	return nil
 }
 
-func (w *wtypeBackend) Inject(ctx context.Context, text string, timeout time.Duration) error {
+func (w *wtypeBackend) Inject(ctx context.Context, text string, timeout time.Duration, windowAddress string) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 

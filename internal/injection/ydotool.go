@@ -63,7 +63,7 @@ func (y *ydotoolBackend) getSocketPath() string {
 	return ""
 }
 
-func (y *ydotoolBackend) Inject(ctx context.Context, text string, timeout time.Duration) error {
+func (y *ydotoolBackend) Inject(ctx context.Context, text string, timeout time.Duration, windowAddress string) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
