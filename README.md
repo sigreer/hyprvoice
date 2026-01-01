@@ -734,6 +734,46 @@ Contributions welcome! Please:
 - Update documentation for user-facing changes
 - Test on Hyprland/Wayland before submitting PRs
 
+## Related Projects
+
+### PedalPusher
+
+[PedalPusher](https://github.com/sigreer/pedalpusher) is a USB foot pedal mapper for Linux that pairs naturally with Hyprvoice. While Hyprvoice handles voice transcription and text injection, PedalPusher handles hardware input from foot pedals.
+
+**Typical workflow with PedalPusher:**
+1. User presses foot pedal → PedalPusher triggers `hyprvoice toggle`
+2. Hyprvoice starts recording, captures the active window, reduces speaker volume
+3. User speaks, releases pedal → PedalPusher triggers `hyprvoice toggle` again
+4. Hyprvoice transcribes via Whisper API, focuses original window, pastes text
+5. PedalPusher restores speaker volume
+
+**What each project handles:**
+| Concern | Hyprvoice | PedalPusher |
+|---------|-----------|-------------|
+| Voice transcription | OpenAI/Groq Whisper | — |
+| Text injection | Clipboard + Ctrl+Shift+V | — |
+| Window tracking | Capture & refocus original window | — |
+| Hardware input | — | USB foot pedals |
+| Event interception | PipeWire audio | Linux input events |
+| Script execution | — | Shell scripts on pedal events |
+| Volume management | — | Reduce during recording |
+
+The projects are independent but designed to work together. You can use:
+- Hyprvoice alone with keyboard shortcuts (bind `hyprvoice toggle` to any key)
+- PedalPusher alone for foot pedal scripting/remapping
+- Both together for hands-free voice input via foot pedal
+
+**Example PedalPusher configuration for Hyprvoice:**
+```yaml
+mappings:
+  pedal_left:
+    key_code: 183       # F13
+    script: hyprvoice-toggle.sh
+    "on": both          # Trigger on press AND release
+    passthrough: false
+    debounce: 1.0       # Prevents double-trigger on quick press
+```
+
 ## License
 
 MIT License - see [LICENSE.md](LICENSE.md) for details.
