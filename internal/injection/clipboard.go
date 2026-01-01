@@ -81,18 +81,13 @@ func (c *clipboardBackend) focusWindow(ctx context.Context, windowAddress string
 	return nil
 }
 
-// pasteFromClipboard simulates Ctrl+V to paste from clipboard
+// pasteFromClipboard simulates Ctrl+Shift+V to paste from clipboard
+// Uses Ctrl+Shift+V which works in terminals (Ghostty, etc.) and most GUI apps
 func (c *clipboardBackend) pasteFromClipboard(ctx context.Context) error {
 	// Try wtype first (Wayland native)
-	// Try -k flag first (key combination syntax)
 	if wtypePath, err := exec.LookPath("wtype"); err == nil {
-		// Try -k ctrl+v syntax first
-		cmd := exec.CommandContext(ctx, wtypePath, "-k", "ctrl+v")
-		if err := cmd.Run(); err == nil {
-			return nil
-		}
-		// Fallback to explicit modifier sequence
-		cmd = exec.CommandContext(ctx, wtypePath, "-M", "ctrl", "v", "-m", "ctrl")
+		// Use Ctrl+Shift+V - works in terminals and most GUI apps
+		cmd := exec.CommandContext(ctx, wtypePath, "-M", "ctrl", "-M", "shift", "v", "-m", "shift", "-m", "ctrl")
 		if err := cmd.Run(); err != nil {
 			log.Printf("Clipboard: wtype paste failed: %v, trying ydotool", err)
 		} else {
@@ -102,7 +97,7 @@ func (c *clipboardBackend) pasteFromClipboard(ctx context.Context) error {
 
 	// Fallback to ydotool
 	if _, err := exec.LookPath("ydotool"); err == nil {
-		cmd := exec.CommandContext(ctx, "ydotool", "key", "ctrl+v")
+		cmd := exec.CommandContext(ctx, "ydotool", "key", "ctrl+shift+v")
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("ydotool paste failed: %w", err)
 		}
