@@ -8,6 +8,7 @@ Press a toggle key, speak, and get instant text input. Built natively for Waylan
 - **Wayland native**: Purpose-built for Wayland compositors - no legacy X11 dependencies or hacky workarounds
 - **Real-time feedback**: Desktop notifications for recording states and transcription status
 - **Multiple transcription backends**: OpenAI Whisper and Groq (planned: whisper.cpp for local processing, gemini, and more)
+- **LLM post-processing**: Optional AI cleanup to remove filler words, fix punctuation, and improve clarity
 - **Smart text injection**: Clipboard save/restore with direct typing fallback
 - **Daemon architecture**: Lightweight control plane with efficient pipeline management
 
@@ -140,6 +141,11 @@ hyprvoice cancel
 
 # Check current status
 hyprvoice status
+
+# Get or set processing mode (raw transcription or LLM cleanup)
+hyprvoice mode          # Show current mode
+hyprvoice mode raw      # Direct transcription
+hyprvoice mode llm      # AI-cleaned transcription
 
 # Get protocol version
 hyprvoice version
@@ -424,6 +430,54 @@ type = "desktop"           # "desktop", "log", or "none"
 
 Always keep `type = "desktop"` unless debugging.
 
+#### LLM Post-Processing
+
+Optional AI-powered cleanup of transcribed text. When enabled, transcriptions are passed through an LLM to remove filler words, fix punctuation, and improve clarity.
+
+```toml
+[processing]
+mode = "llm"               # "raw" (direct transcription) or "llm" (AI cleanup)
+
+[llm]
+provider = "openai"        # LLM provider (currently only "openai" supported)
+api_key = ""               # API key (or use OPENAI_API_KEY environment variable)
+model = "gpt-4o-mini"      # Model to use for text cleanup
+level = "moderate"         # Intervention level (see below)
+custom_prompt = ""         # Custom system prompt (used when level = "custom")
+```
+
+**Processing Modes:**
+
+- **`raw`**: Direct transcription output without any post-processing (default)
+- **`llm`**: Pass transcription through an LLM for cleanup
+
+**Intervention Levels:**
+
+| Level | Description |
+|-------|-------------|
+| `minimal` | Light touch - only fix typos, punctuation, and capitalization. Preserves exact wording including filler words. |
+| `moderate` | Balanced - removes filler words (um, uh, erm), fixes punctuation, preserves speaker's voice and sentence structure. |
+| `thorough` | Full rewrite - restructures for clarity and flow, combines fragmented thoughts, while preserving meaning. |
+| `custom` | Uses your own system prompt defined in `custom_prompt`. |
+
+**Runtime Mode Switching:**
+
+You can switch processing modes without restarting the daemon:
+
+```bash
+hyprvoice mode          # Show current mode
+hyprvoice mode raw      # Switch to raw transcription
+hyprvoice mode llm      # Switch to LLM cleanup
+```
+
+**Custom Prompt Example:**
+
+```toml
+[llm]
+level = "custom"
+custom_prompt = "You are an assistant that converts speech to formal business English. Fix grammar, use professional vocabulary, and format as bullet points where appropriate. Output only the cleaned text."
+```
+
 ### Configuration Hot-Reloading
 
 The daemon automatically watches the config file for changes and applies them immediately:
@@ -469,6 +523,7 @@ journalctl --user -u hyprvoice.service -f
 | Desktop notifications  | ✅     | Status feedback via notify-send                       |
 | OpenAI transcription   | ✅     | HTTP API integration                                  |
 | Groq transcription     | ✅     | Fast Whisper API with transcription and translation   |
+| LLM post-processing    | ✅     | Optional AI cleanup with configurable intervention levels |
 | Text injection         | ✅     | Clipboard + wtype with fallback                       |
 | Configuration system   | ✅     | TOML-based user settings with hot-reload              |
 | Interactive setup      | ✅     | `hyprvoice configure` wizard for easy setup           |
@@ -693,12 +748,14 @@ hyprvoice/
 ├── cmd/hyprvoice/         # CLI application entry point
 ├── internal/
 │   ├── bus/              # IPC (Unix socket) + PID management
+│   ├── config/           # Configuration management with hot-reload
 │   ├── daemon/           # Control daemon (lifecycle management)
 │   ├── injection/        # Text injection (clipboard + wtype)
+│   ├── llm/              # LLM post-processing (OpenAI adapter)
 │   ├── notify/           # Desktop notification integration
 │   ├── pipeline/         # Audio processing pipeline + state machine
 │   ├── recording/        # PipeWire audio capture
-│   └── transcriber/      # Transcription adapters (OpenAI, whisper.cpp)
+│   └── transcriber/      # Transcription adapters (OpenAI, Groq)
 ├── go.mod                # Go module definition
 └── README.md
 ```
@@ -722,6 +779,7 @@ Simple single-character commands over Unix socket:
 - `t` - Toggle recording on/off
 - `c` - Cancel current operation
 - `s` - Get current status
+- `m` - Get processing mode / `m:raw` or `m:llm` to set mode
 - `v` - Get protocol version
 - `q` - Quit daemon gracefully
 

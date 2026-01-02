@@ -8,6 +8,7 @@ import (
 
 	"github.com/leonardotrapani/hyprvoice/internal/config"
 	"github.com/leonardotrapani/hyprvoice/internal/injection"
+	"github.com/leonardotrapani/hyprvoice/internal/llm"
 	"github.com/leonardotrapani/hyprvoice/internal/recording"
 	"github.com/leonardotrapani/hyprvoice/internal/transcriber"
 )
@@ -227,7 +228,26 @@ func (p *pipeline) handleInjectAction(ctx context.Context, recorder *recording.R
 		p.sendError("Transcription Error", "Failed to retrieve transcription", err)
 		return
 	}
-	log.Printf("Pipeline: Final transcription text: %s", transcriptionText)
+	log.Printf("Pipeline: Raw transcription text: %s", transcriptionText)
+
+	// LLM post-processing if enabled
+	if p.config.Processing.Mode == "llm" && transcriptionText != "" {
+		log.Printf("Pipeline: Processing with LLM...")
+		processor, llmErr := llm.NewProcessor(p.config.ToLLMConfig())
+		if llmErr != nil {
+			log.Printf("Pipeline: Failed to create LLM processor, using raw: %v", llmErr)
+		} else {
+			processedText, procErr := processor.Process(ctx, transcriptionText)
+			if procErr != nil {
+				log.Printf("Pipeline: LLM processing failed, using raw: %v", procErr)
+			} else {
+				log.Printf("Pipeline: LLM cleaned text: %s", processedText)
+				transcriptionText = processedText
+			}
+		}
+	}
+
+	log.Printf("Pipeline: Final text for injection: %s", transcriptionText)
 
 	injector := injection.NewInjector(p.config.ToInjectionConfig())
 

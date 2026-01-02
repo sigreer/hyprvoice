@@ -9,6 +9,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/leonardotrapani/hyprvoice/internal/injection"
+	"github.com/leonardotrapani/hyprvoice/internal/llm"
 	"github.com/leonardotrapani/hyprvoice/internal/recording"
 	"github.com/leonardotrapani/hyprvoice/internal/transcriber"
 )
@@ -18,6 +19,20 @@ type Config struct {
 	Transcription TranscriptionConfig `toml:"transcription"`
 	Injection     InjectionConfig     `toml:"injection"`
 	Notifications NotificationsConfig `toml:"notifications"`
+	Processing    ProcessingConfig    `toml:"processing"`
+	LLM           LLMConfig           `toml:"llm"`
+}
+
+type ProcessingConfig struct {
+	Mode string `toml:"mode"` // "raw" (default) or "llm"
+}
+
+type LLMConfig struct {
+	Provider     string `toml:"provider"`      // "openai"
+	APIKey       string `toml:"api_key"`
+	Model        string `toml:"model"`         // Default: "gpt-4o-mini"
+	Level        string `toml:"level"`         // "minimal", "moderate", "thorough", or "custom"
+	CustomPrompt string `toml:"custom_prompt"` // Used when level is "custom"
 }
 
 type RecordingConfig struct {
@@ -89,6 +104,28 @@ func (c *Config) ToInjectionConfig() injection.Config {
 		WtypeTimeout:     c.Injection.WtypeTimeout,
 		ClipboardTimeout: c.Injection.ClipboardTimeout,
 	}
+}
+
+func (c *Config) ToLLMConfig() llm.Config {
+	config := llm.Config{
+		Provider:     c.LLM.Provider,
+		APIKey:       c.LLM.APIKey,
+		Model:        c.LLM.Model,
+		Level:        c.LLM.Level,
+		CustomPrompt: c.LLM.CustomPrompt,
+	}
+
+	// Check for API key in environment variable if not in config
+	if config.APIKey == "" {
+		config.APIKey = os.Getenv("OPENAI_API_KEY")
+	}
+
+	// Default level to moderate if not set
+	if config.Level == "" {
+		config.Level = "moderate"
+	}
+
+	return config
 }
 
 func (c *Config) Validate() error {
@@ -204,6 +241,48 @@ func (c *Config) Validate() error {
 	validTypes := map[string]bool{"desktop": true, "log": true, "none": true}
 	if !validTypes[c.Notifications.Type] {
 		return fmt.Errorf("invalid notifications.type: %s (must be desktop, log, or none)", c.Notifications.Type)
+	}
+
+	// Processing (optional - defaults to "raw" if not set)
+	if c.Processing.Mode == "" {
+		c.Processing.Mode = "raw"
+	}
+	validModes := map[string]bool{"raw": true, "llm": true}
+	if !validModes[c.Processing.Mode] {
+		return fmt.Errorf("invalid processing.mode: %s (must be raw or llm)", c.Processing.Mode)
+	}
+
+	// LLM config (only validate if mode is "llm")
+	if c.Processing.Mode == "llm" {
+		if c.LLM.Provider == "" {
+			c.LLM.Provider = "openai"
+		}
+		if c.LLM.Provider != "openai" {
+			return fmt.Errorf("invalid llm.provider: %s (must be openai)", c.LLM.Provider)
+		}
+		if c.LLM.Model == "" {
+			c.LLM.Model = "gpt-4o-mini"
+		}
+		// Validate and set default level
+		if c.LLM.Level == "" {
+			c.LLM.Level = "moderate"
+		}
+		validLevels := map[string]bool{"minimal": true, "moderate": true, "thorough": true, "custom": true}
+		if !validLevels[c.LLM.Level] {
+			return fmt.Errorf("invalid llm.level: %s (must be minimal, moderate, thorough, or custom)", c.LLM.Level)
+		}
+		// If level is custom, require a custom_prompt
+		if c.LLM.Level == "custom" && c.LLM.CustomPrompt == "" {
+			return fmt.Errorf("llm.custom_prompt is required when llm.level is 'custom'")
+		}
+		// Check for API key
+		apiKey := c.LLM.APIKey
+		if apiKey == "" {
+			apiKey = os.Getenv("OPENAI_API_KEY")
+		}
+		if apiKey == "" {
+			return fmt.Errorf("LLM API key required when processing.mode is 'llm': not found in config (llm.api_key) or environment variable (OPENAI_API_KEY)")
+		}
 	}
 
 	return nil
@@ -358,6 +437,18 @@ func SaveDefaultConfig() error {
   enabled = true               # Enable desktop notifications
   type = "desktop"             # Notification type ("desktop", "log", "none")
 
+# Post-Transcription Processing Configuration
+[processing]
+  mode = "raw"                 # Processing mode: "raw" (direct transcription) or "llm" (AI cleanup)
+
+# LLM Configuration (used when processing.mode = "llm")
+[llm]
+  provider = "openai"          # LLM provider (currently only "openai" supported)
+  api_key = ""                 # API key (or use OPENAI_API_KEY environment variable)
+  model = "gpt-4o-mini"        # Model to use for text cleanup
+  level = "moderate"           # Intervention level: "minimal", "moderate", "thorough", or "custom"
+  custom_prompt = ""           # Custom system prompt (used when level = "custom")
+
 # Backend explanations:
 # - "ydotool": Uses ydotool (requires ydotoold daemon running). Most compatible with Chromium/Electron apps.
 # - "wtype": Uses wtype for Wayland. May have issues with some Chromium-based apps.
@@ -379,6 +470,19 @@ func SaveDefaultConfig() error {
 # Language codes: Use empty string ("") for automatic detection, or specific codes like:
 # "en" (English), "it" (Italian), "es" (Spanish), "fr" (French), "de" (German), etc.
 # For groq-translation, the language field hints at the source audio language for better accuracy.
+#
+# Processing mode explanations:
+# - "raw": Direct transcription output without any post-processing
+# - "llm": Pass transcription through an LLM to clean up the text
+#
+# LLM level explanations:
+# - "minimal":  Light touch - only fix typos, punctuation, and capitalization
+# - "moderate": Balanced - remove filler words (um, uh) and fix punctuation while preserving voice
+# - "thorough": Full rewrite - restructure for clarity and flow while preserving meaning
+# - "custom":   Use your own system prompt defined in custom_prompt
+#
+# LLM provider explanations:
+# - "openai": Uses OpenAI's API (requires OPENAI_API_KEY). Recommended model: gpt-4o-mini
 `
 
 	if _, err := file.WriteString(configContent); err != nil {

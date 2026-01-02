@@ -222,3 +222,34 @@ func SendCommand(cmd byte) (string, error) {
 
 	return resp, nil
 }
+
+// SendModeCommand sends a mode command to the daemon
+// If mode is empty, it requests the current mode
+// If mode is non-empty, it sets the mode to the specified value
+func SendModeCommand(mode string) (string, error) {
+	c, err := Dial()
+	if err != nil {
+		return "", fmt.Errorf("failed to connect to daemon: %w", err)
+	}
+	defer c.Close()
+
+	// Format: "m\n" for get, "m:llm\n" for set
+	var cmdStr string
+	if mode == "" {
+		cmdStr = "m\n"
+	} else {
+		cmdStr = fmt.Sprintf("m:%s\n", mode)
+	}
+
+	_, err = c.Write([]byte(cmdStr))
+	if err != nil {
+		return "", fmt.Errorf("failed to send mode command: %w", err)
+	}
+
+	resp, err := bufio.NewReader(c).ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	return resp, nil
+}

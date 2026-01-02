@@ -33,6 +33,7 @@ func init() {
 		versionCmd(),
 		stopCmd(),
 		configureCmd(),
+		modeCmd(),
 	)
 }
 
@@ -137,6 +138,50 @@ This will guide you through setting up:
 - Notification settings`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runInteractiveConfig()
+		},
+	}
+}
+
+func modeCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "mode [raw|llm]",
+		Short: "Get or set processing mode",
+		Long: `Get or set the post-transcription processing mode.
+
+With no arguments: displays the current processing mode.
+With an argument: sets the processing mode for the current session.
+
+Modes:
+  raw  - Direct transcription output (default)
+  llm  - Clean up transcription using AI (removes filler words, fixes punctuation)
+
+Examples:
+  hyprvoice mode        # Show current mode
+  hyprvoice mode raw    # Switch to raw mode
+  hyprvoice mode llm    # Switch to LLM cleanup mode`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				// Get current mode
+				resp, err := bus.SendModeCommand("")
+				if err != nil {
+					return fmt.Errorf("failed to get mode: %w", err)
+				}
+				fmt.Print(resp)
+				return nil
+			}
+
+			// Set mode
+			mode := args[0]
+			if mode != "raw" && mode != "llm" {
+				return fmt.Errorf("invalid mode: %s (must be 'raw' or 'llm')", mode)
+			}
+
+			resp, err := bus.SendModeCommand(mode)
+			if err != nil {
+				return fmt.Errorf("failed to set mode: %w", err)
+			}
+			fmt.Print(resp)
+			return nil
 		},
 	}
 }
@@ -497,6 +542,18 @@ func saveConfig(cfg *config.Config) error {
   enabled = %v               # Enable desktop notifications
   type = "%s"             # Notification type ("desktop", "log", "none")
 
+# Post-Transcription Processing Configuration
+[processing]
+  mode = "%s"                 # Processing mode: "raw" (direct transcription) or "llm" (AI cleanup)
+
+# LLM Configuration (used when processing.mode = "llm")
+[llm]
+  provider = "%s"          # LLM provider (currently only "openai" supported)
+  api_key = "%s"                 # API key (or use OPENAI_API_KEY environment variable)
+  model = "%s"        # Model to use for text cleanup
+  level = "%s"           # Intervention level: "minimal", "moderate", "thorough", or "custom"
+  custom_prompt = "%s"           # Custom system prompt (used when level = "custom")
+
 # Backend explanations:
 # - "ydotool": Uses ydotool (requires ydotoold daemon running). Most compatible with Chromium/Electron apps.
 # - "wtype": Uses wtype for Wayland. May have issues with some Chromium-based apps.
@@ -514,6 +571,16 @@ func saveConfig(cfg *config.Config) error {
 # Language codes: Use empty string ("") for automatic detection, or specific codes like:
 # "en" (English), "it" (Italian), "es" (Spanish), "fr" (French), "de" (German), etc.
 # For groq-translation, the language field hints at the source audio language for better accuracy.
+#
+# Processing mode explanations:
+# - "raw": Direct transcription output without any post-processing
+# - "llm": Pass transcription through an LLM to clean up the text
+#
+# LLM level explanations:
+# - "minimal":  Light touch - only fix typos, punctuation, and capitalization
+# - "moderate": Balanced - remove filler words (um, uh) and fix punctuation while preserving voice
+# - "thorough": Full rewrite - restructure for clarity and flow while preserving meaning
+# - "custom":   Use your own system prompt defined in custom_prompt
 `,
 		cfg.Recording.SampleRate,
 		cfg.Recording.Channels,
@@ -532,6 +599,12 @@ func saveConfig(cfg *config.Config) error {
 		cfg.Injection.ClipboardTimeout,
 		cfg.Notifications.Enabled,
 		cfg.Notifications.Type,
+		getProcessingMode(cfg),
+		getLLMProvider(cfg),
+		cfg.LLM.APIKey,
+		getLLMModel(cfg),
+		getLLMLevel(cfg),
+		escapeTomlString(cfg.LLM.CustomPrompt),
 	)
 
 	if _, err := file.WriteString(configContent); err != nil {
@@ -539,4 +612,41 @@ func saveConfig(cfg *config.Config) error {
 	}
 
 	return nil
+}
+
+func getProcessingMode(cfg *config.Config) string {
+	if cfg.Processing.Mode == "" {
+		return "raw"
+	}
+	return cfg.Processing.Mode
+}
+
+func getLLMProvider(cfg *config.Config) string {
+	if cfg.LLM.Provider == "" {
+		return "openai"
+	}
+	return cfg.LLM.Provider
+}
+
+func getLLMModel(cfg *config.Config) string {
+	if cfg.LLM.Model == "" {
+		return "gpt-4o-mini"
+	}
+	return cfg.LLM.Model
+}
+
+func getLLMLevel(cfg *config.Config) string {
+	if cfg.LLM.Level == "" {
+		return "moderate"
+	}
+	return cfg.LLM.Level
+}
+
+func escapeTomlString(s string) string {
+	// Escape backslashes and quotes for TOML string
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "\"", "\\\"")
+	// Replace newlines with \n literal
+	s = strings.ReplaceAll(s, "\n", "\\n")
+	return s
 }

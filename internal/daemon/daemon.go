@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -30,6 +31,8 @@ type Daemon struct {
 	pipeline pipeline.Pipeline
 
 	wg sync.WaitGroup
+
+	modeOverride string // Runtime mode override ("raw", "llm", or "" for config default)
 }
 
 func New() (*Daemon, error) {
@@ -175,6 +178,26 @@ func (d *Daemon) handle(c net.Conn) {
 	case 'q':
 		fmt.Fprint(c, "OK quitting\n")
 		d.cancel()
+	case 'm':
+		// Mode command - format: "m\n" (get) or "m:llm\n" (set)
+		modeArg := strings.TrimSpace(line[1:])
+		if modeArg == "" {
+			// Get current mode
+			mode := d.getEffectiveMode()
+			fmt.Fprintf(c, "MODE mode=%s\n", mode)
+		} else if strings.HasPrefix(modeArg, ":") {
+			// Set mode
+			newMode := strings.TrimPrefix(modeArg, ":")
+			if newMode != "raw" && newMode != "llm" {
+				fmt.Fprintf(c, "ERR invalid_mode=%s\n", newMode)
+			} else {
+				d.setModeOverride(newMode)
+				log.Printf("Daemon: Processing mode changed to %s", newMode)
+				fmt.Fprintf(c, "OK mode=%s\n", newMode)
+			}
+		} else {
+			fmt.Fprintf(c, "ERR invalid_mode_command\n")
+		}
 	default:
 		log.Printf("Unknown command: %c", cmd)
 		fmt.Fprintf(c, "ERR unknown=%q\n", cmd)
@@ -184,7 +207,7 @@ func (d *Daemon) handle(c net.Conn) {
 func (d *Daemon) toggle() {
 	switch d.status() {
 	case pipeline.Idle:
-		config := d.configMgr.GetConfig()
+		config := d.getConfigWithModeOverride()
 		
 		// Capture active window when recording starts
 		windowAddress := d.getActiveWindow()
@@ -275,4 +298,38 @@ func (d *Daemon) getActiveWindow() string {
 	}
 
 	return window.Address
+}
+
+// getEffectiveMode returns the current processing mode (runtime override or config default)
+func (d *Daemon) getEffectiveMode() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	if d.modeOverride != "" {
+		return d.modeOverride
+	}
+	return d.configMgr.GetConfig().Processing.Mode
+}
+
+// setModeOverride sets a runtime mode override
+func (d *Daemon) setModeOverride(mode string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.modeOverride = mode
+}
+
+// getConfigWithModeOverride returns a copy of the config with the mode override applied
+func (d *Daemon) getConfigWithModeOverride() *config.Config {
+	cfg := d.configMgr.GetConfig()
+
+	d.mu.RLock()
+	modeOverride := d.modeOverride
+	d.mu.RUnlock()
+
+	if modeOverride != "" {
+		// Create a copy with the override applied
+		cfgCopy := *cfg
+		cfgCopy.Processing.Mode = modeOverride
+		return &cfgCopy
+	}
+	return cfg
 }
