@@ -426,6 +426,119 @@ func runInteractiveConfig() error {
 
 	fmt.Println()
 
+	// Configure LLM post-processing
+	for {
+		fmt.Println("🤖 Post-Processing Configuration")
+		fmt.Println("---------------------------------")
+		fmt.Println("LLM post-processing can clean up transcriptions by removing filler words")
+		fmt.Println("(um, uh, erm), fixing punctuation, and improving clarity.")
+		fmt.Println()
+		fmt.Println("Processing modes:")
+		fmt.Println("  1. raw - Direct transcription (no cleanup)")
+		fmt.Println("  2. llm - AI-powered cleanup")
+		fmt.Printf("Mode [1-2] (current: %s): ", getProcessingMode(cfg))
+		if !scanner.Scan() {
+			break
+		}
+		input := strings.TrimSpace(scanner.Text())
+		switch input {
+		case "1", "raw":
+			cfg.Processing.Mode = "raw"
+		case "2", "llm":
+			cfg.Processing.Mode = "llm"
+		case "":
+			// keep current
+		default:
+			fmt.Println("❌ Error: please enter 1, 2, raw, or llm.")
+			fmt.Println()
+			continue
+		}
+		break
+	}
+
+	// If LLM mode is enabled, configure LLM settings
+	if cfg.Processing.Mode == "llm" {
+		fmt.Println()
+
+		// LLM API Key
+		fmt.Println("LLM uses OpenAI's API for text cleanup.")
+		fmt.Printf("OpenAI API Key (current: %s, leave empty to use OPENAI_API_KEY env var): ", maskAPIKey(cfg.LLM.APIKey))
+		if scanner.Scan() {
+			input := strings.TrimSpace(scanner.Text())
+			if input != "" {
+				cfg.LLM.APIKey = input
+			}
+		}
+
+		// LLM Model
+		fmt.Printf("Model (current: %s, press Enter for default): ", getLLMModel(cfg))
+		if scanner.Scan() {
+			input := strings.TrimSpace(scanner.Text())
+			if input != "" {
+				cfg.LLM.Model = input
+			} else if cfg.LLM.Model == "" {
+				cfg.LLM.Model = "gpt-4o-mini"
+			}
+		}
+
+		// LLM Level
+		for {
+			fmt.Println()
+			fmt.Println("Intervention levels:")
+			fmt.Println("  1. minimal  - Light touch: fix typos and punctuation only")
+			fmt.Println("  2. moderate - Balanced: remove filler words, fix punctuation")
+			fmt.Println("  3. thorough - Full rewrite: restructure for clarity")
+			fmt.Println("  4. custom   - Use your own system prompt")
+			fmt.Printf("Level [1-4] (current: %s): ", getLLMLevel(cfg))
+			if !scanner.Scan() {
+				break
+			}
+			input := strings.TrimSpace(scanner.Text())
+			switch input {
+			case "1", "minimal":
+				cfg.LLM.Level = "minimal"
+			case "2", "moderate":
+				cfg.LLM.Level = "moderate"
+			case "3", "thorough":
+				cfg.LLM.Level = "thorough"
+			case "4", "custom":
+				cfg.LLM.Level = "custom"
+			case "":
+				if cfg.LLM.Level == "" {
+					cfg.LLM.Level = "moderate"
+				}
+			default:
+				fmt.Println("❌ Error: please enter 1-4 or level name.")
+				fmt.Println()
+				continue
+			}
+			break
+		}
+
+		// Custom prompt if level is custom
+		if cfg.LLM.Level == "custom" {
+			fmt.Println()
+			fmt.Println("Enter your custom system prompt (single line):")
+			if cfg.LLM.CustomPrompt != "" {
+				fmt.Printf("Current: %s\n", truncateString(cfg.LLM.CustomPrompt, 60))
+			}
+			fmt.Print("Prompt: ")
+			if scanner.Scan() {
+				input := strings.TrimSpace(scanner.Text())
+				if input != "" {
+					cfg.LLM.CustomPrompt = input
+				}
+			}
+		}
+
+		// Set defaults
+		if cfg.LLM.Provider == "" {
+			cfg.LLM.Provider = "openai"
+		}
+	}
+
+	fmt.Println()
+
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
 		fmt.Printf("❌ Configuration validation failed: %v\n", err)
@@ -649,4 +762,11 @@ func escapeTomlString(s string) string {
 	// Replace newlines with \n literal
 	s = strings.ReplaceAll(s, "\n", "\\n")
 	return s
+}
+
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
 }
