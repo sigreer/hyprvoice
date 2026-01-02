@@ -37,6 +37,7 @@ func init() {
 		stopCmd(),
 		configureCmd(),
 		modeCmd(),
+		showCmd(),
 	)
 }
 
@@ -179,6 +180,72 @@ Examples:
 				return fmt.Errorf("failed to set mode: %w", err)
 			}
 			fmt.Print(resp)
+			return nil
+		},
+	}
+}
+
+func showCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "show",
+		Short: "Show current configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+
+			configPath, _ := config.GetConfigPath()
+
+			fmt.Println("Hyprvoice Configuration")
+			fmt.Println("=======================")
+			fmt.Printf("Config file: %s\n\n", configPath)
+
+			fmt.Println("[recording]")
+			fmt.Printf("  sample_rate        = %d\n", cfg.Recording.SampleRate)
+			fmt.Printf("  channels           = %d\n", cfg.Recording.Channels)
+			fmt.Printf("  format             = %s\n", cfg.Recording.Format)
+			fmt.Printf("  buffer_size        = %d\n", cfg.Recording.BufferSize)
+			fmt.Printf("  device             = %s\n", cfg.Recording.Device)
+			fmt.Printf("  channel_buffer_size = %d\n", cfg.Recording.ChannelBufferSize)
+			fmt.Printf("  timeout            = %s\n", cfg.Recording.Timeout)
+			fmt.Println()
+
+			fmt.Println("[transcription]")
+			fmt.Printf("  provider           = %s\n", cfg.Transcription.Provider)
+			fmt.Printf("  api_key            = %s\n", maskAPIKey(cfg.Transcription.APIKey))
+			fmt.Printf("  language           = %s\n", cfg.Transcription.Language)
+			fmt.Printf("  model              = %s\n", cfg.Transcription.Model)
+			fmt.Println()
+
+			fmt.Println("[injection]")
+			fmt.Printf("  backends           = %v\n", cfg.Injection.Backends)
+			fmt.Printf("  ydotool_timeout    = %s\n", cfg.Injection.YdotoolTimeout)
+			fmt.Printf("  wtype_timeout      = %s\n", cfg.Injection.WtypeTimeout)
+			fmt.Printf("  clipboard_timeout  = %s\n", cfg.Injection.ClipboardTimeout)
+			fmt.Println()
+
+			fmt.Println("[notifications]")
+			fmt.Printf("  enabled            = %v\n", cfg.Notifications.Enabled)
+			fmt.Printf("  type               = %s\n", cfg.Notifications.Type)
+			fmt.Println()
+
+			fmt.Println("[processing]")
+			fmt.Printf("  mode               = %s\n", getProcessingMode(cfg))
+			fmt.Println()
+
+			if cfg.Processing.Mode == "llm" {
+				fmt.Println("[llm]")
+				fmt.Printf("  provider           = %s\n", getLLMProvider(cfg))
+				fmt.Printf("  api_key            = %s\n", maskAPIKey(cfg.LLM.APIKey))
+				fmt.Printf("  model              = %s\n", getLLMModel(cfg))
+				fmt.Printf("  level              = %s\n", getLLMLevel(cfg))
+				if cfg.LLM.Level == "custom" {
+					fmt.Printf("  custom_prompt      = %s\n", truncateString(cfg.LLM.CustomPrompt, 50))
+				}
+				fmt.Println()
+			}
+
 			return nil
 		},
 	}
