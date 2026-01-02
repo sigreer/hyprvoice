@@ -147,7 +147,7 @@ hyprvoice mode          # Show current mode
 hyprvoice mode raw      # Direct transcription
 hyprvoice mode llm      # AI-cleaned transcription
 
-# Get protocol version
+# Print application version
 hyprvoice version
 
 # Stop the daemon (if not using systemd service)

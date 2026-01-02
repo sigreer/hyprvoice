@@ -15,6 +15,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// version is set at build time via -ldflags "-X main.version=x.y.z"
+var version = "dev"
+
 func main() {
 	_ = rootCmd.Execute()
 }
@@ -84,14 +87,9 @@ func statusCmd() *cobra.Command {
 func versionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Get protocol version",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			resp, err := bus.SendCommand('v')
-			if err != nil {
-				return fmt.Errorf("failed to get version: %w", err)
-			}
-			fmt.Print(resp)
-			return nil
+		Short: "Print application version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("hyprvoice %s\n", version)
 		},
 	}
 }
