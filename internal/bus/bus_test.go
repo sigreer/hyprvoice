@@ -263,8 +263,6 @@ func TestSendCommand(t *testing.T) {
 				response = "OK toggled\n"
 			case 's':
 				response = "STATUS status=idle\n"
-			case 'v':
-				response = "STATUS proto=0.1\n"
 			case 'q':
 				response = "OK quitting\n"
 			default:

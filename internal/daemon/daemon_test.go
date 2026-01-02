@@ -435,7 +435,6 @@ type = "log"`
 		expected string
 	}{
 		{"toggle_command", "t\n", "OK toggled\n"},
-		{"version_command", "v\n", "STATUS proto="},
 		{"quit_command", "q\n", "OK quitting\n"},
 		{"unknown_command", "x\n", "ERR unknown="},
 	}
@@ -455,11 +454,7 @@ type = "log"`
 
 			// Check response
 			response := string(mockConn.writeData)
-			if tt.name == "version_command" {
-				if len(response) == 0 || !((len(response) >= 12 && response[:12] == "STATUS proto=") || (len(response) >= 13 && response[:13] == "STATUS proto=")) {
-					t.Errorf("handle() response = %q, want prefix %q", response, "STATUS proto=")
-				}
-			} else if tt.name == "unknown_command" {
+			if tt.name == "unknown_command" {
 				if len(response) == 0 || !((len(response) >= 12 && response[:12] == "ERR unknown=") || (len(response) >= 13 && response[:13] == "ERR unknown=")) {
 					t.Errorf("handle() response = %q, want prefix %q", response, "ERR unknown=")
 				}

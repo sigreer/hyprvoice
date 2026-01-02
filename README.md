@@ -780,7 +780,6 @@ Simple single-character commands over Unix socket:
 - `c` - Cancel current operation
 - `s` - Get current status
 - `m` - Get processing mode / `m:raw` or `m:llm` to set mode
-- `v` - Get protocol version
 - `q` - Quit daemon gracefully
 
 ## Contributing

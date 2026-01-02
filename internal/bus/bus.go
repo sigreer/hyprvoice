@@ -14,7 +14,6 @@ import (
 const (
 	SockName = "control.sock"
 	PidName  = "hyprvoice.pid"
-	ProtoVer = "0.1"
 )
 
 type pidManager struct {

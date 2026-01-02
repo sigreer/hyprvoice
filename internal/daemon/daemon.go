@@ -173,8 +173,6 @@ func (d *Daemon) handle(c net.Conn) {
 	case 's':
 		status := d.status()
 		fmt.Fprintf(c, "STATUS status=%s\n", status)
-	case 'v':
-		fmt.Fprintf(c, "STATUS proto=%s\n", bus.ProtoVer)
 	case 'q':
 		fmt.Fprint(c, "OK quitting\n")
 		d.cancel()

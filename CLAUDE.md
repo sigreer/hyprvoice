@@ -4,14 +4,12 @@
 
 **Increment the version for every push.** The version is set at build time via ldflags in `cmd/hyprvoice/main.go`.
 
-Current version: **0.2.0**
+Current version: **0.2.1**
 
 Use semantic versioning:
 - Patch (0.2.0 → 0.2.1): Bug fixes
 - Minor (0.2.0 → 0.3.0): New features
 - Major (0.2.0 → 1.0.0): Breaking changes
-
-Note: `internal/bus/bus.go` contains `ProtoVer` which is the IPC *protocol* version (for daemon↔CLI compatibility), not the app version.
 
 ## Build Requirements
 
@@ -31,7 +29,7 @@ Verify the version:
 ## Project Structure
 
 - `cmd/hyprvoice/main.go` - CLI entry point (cobra commands, version variable)
-- `internal/bus/` - IPC socket communication and protocol version
+- `internal/bus/` - IPC socket communication
 - `internal/daemon/` - Main daemon logic
 - `internal/config/` - Configuration management
 - `internal/recording/` - Audio recording via PipeWire
