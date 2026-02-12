@@ -475,3 +475,5 @@ func (m *MockPipeline) GetErrorCh() <-chan pipeline.PipelineError {
 	return make(chan pipeline.PipelineError)
 }
 func (m *MockPipeline) GetActionCh() chan<- pipeline.Action { return make(chan pipeline.Action) }
+func (m *MockPipeline) SetWindowAddress(address string)     {}
+func (m *MockPipeline) GetWindowAddress() string            { return "" }

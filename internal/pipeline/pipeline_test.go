@@ -326,6 +326,107 @@ func TestPipelineError_Struct(t *testing.T) {
 	}
 }
 
+func TestStripWakePhrase(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		phrase   string
+		expected string
+	}{
+		{
+			name:     "exact match with period",
+			text:     "Hi welcome to this prompt. Hey Jarvis.",
+			phrase:   "hey jarvis",
+			expected: "Hi welcome to this prompt",
+		},
+		{
+			name:     "exact match without punctuation",
+			text:     "Hi welcome to this prompt, hey jarvis",
+			phrase:   "hey jarvis",
+			expected: "Hi welcome to this prompt",
+		},
+		{
+			name:     "case insensitive",
+			text:     "Hello world HEY JARVIS.",
+			phrase:   "hey jarvis",
+			expected: "Hello world",
+		},
+		{
+			name:     "only wake phrase",
+			text:     "Hey Jarvis.",
+			phrase:   "hey jarvis",
+			expected: "",
+		},
+		{
+			name:     "no wake phrase present",
+			text:     "Hello world",
+			phrase:   "hey jarvis",
+			expected: "Hello world",
+		},
+		{
+			name:     "phrase in middle not stripped",
+			text:     "Hey Jarvis please do this thing",
+			phrase:   "hey jarvis",
+			expected: "Hey Jarvis please do this thing",
+		},
+		{
+			name:     "empty text",
+			text:     "",
+			phrase:   "hey jarvis",
+			expected: "",
+		},
+		{
+			name:     "phrase with trailing spaces",
+			text:     "Hello hey jarvis  ",
+			phrase:   "hey jarvis",
+			expected: "Hello",
+		},
+		// Whisper mistranscription cases
+		{
+			name:     "whisper mistranscription: hi Jarvis",
+			text:     "I'm just testing the transcription, hi Jarvis.",
+			phrase:   "hey jarvis",
+			expected: "I'm just testing the transcription",
+		},
+		{
+			name:     "genuinely different text not stripped",
+			text:     "I said hello to the nice boys.",
+			phrase:   "hey jarvis",
+			expected: "I said hello to the nice boys.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := stripWakePhrase(tt.text, tt.phrase)
+			if result != tt.expected {
+				t.Errorf("stripWakePhrase(%q, %q) = %q, want %q", tt.text, tt.phrase, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLevenshtein(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want int
+	}{
+		{"", "", 0},
+		{"abc", "", 3},
+		{"", "abc", 3},
+		{"abc", "abc", 0},
+		{"hey", "hi", 2},
+		{"jarvis", "jarvis", 0},
+		{"heyjarvis", "hijarvis", 2},
+	}
+	for _, tt := range tests {
+		got := levenshtein(tt.a, tt.b)
+		if got != tt.want {
+			t.Errorf("levenshtein(%q, %q) = %d, want %d", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
+
 // TestPipeline_ConcurrentAccess tests concurrent access to pipeline methods
 func TestPipeline_ConcurrentAccess(t *testing.T) {
 	cfg := &config.Config{

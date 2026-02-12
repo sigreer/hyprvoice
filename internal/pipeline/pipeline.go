@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"log"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -230,6 +231,15 @@ func (p *pipeline) handleInjectAction(ctx context.Context, recorder *recording.R
 	}
 	log.Printf("Pipeline: Raw transcription text: %s", transcriptionText)
 
+	// Strip wake phrase (fast, deterministic, works in all modes)
+	if p.config.Processing.WakePhrase != "" && transcriptionText != "" {
+		stripped := stripWakePhrase(transcriptionText, p.config.Processing.WakePhrase)
+		if stripped != transcriptionText {
+			log.Printf("Pipeline: Stripped wake phrase %q: %q -> %q", p.config.Processing.WakePhrase, transcriptionText, stripped)
+			transcriptionText = stripped
+		}
+	}
+
 	// LLM post-processing if enabled
 	if p.config.Processing.Mode == "llm" && transcriptionText != "" {
 		log.Printf("Pipeline: Processing with LLM...")
@@ -281,4 +291,125 @@ func (p *pipeline) GetWindowAddress() string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.windowAddress
+}
+
+// stripWakePhrase removes the wake phrase from the end of transcription text.
+// Uses fuzzy matching (Levenshtein distance) to handle Whisper mistranscriptions
+// like "hi Jarvis" or "hey Jarvis," when the wake phrase is "hey jarvis".
+func stripWakePhrase(text, phrase string) string {
+	trimmed := strings.TrimRight(text, " ")
+	if trimmed == "" {
+		return text
+	}
+
+	phraseWords := strings.Fields(phrase)
+	n := len(phraseWords)
+	if n == 0 {
+		return text
+	}
+
+	// Find the byte position where the last N words start
+	cutPos, found := findLastNWordsPos(trimmed, n)
+	if !found {
+		return text
+	}
+
+	suffix := trimmed[cutPos:]
+
+	// Normalize both to lowercase letters only for comparison
+	normSuffix := normLetters(suffix)
+	normPhrase := normLetters(phrase)
+
+	if normPhrase == "" {
+		return text
+	}
+
+	dist := levenshtein(normSuffix, normPhrase)
+	maxLen := max(len(normSuffix), len(normPhrase))
+
+	// Allow up to 40% edit distance — catches "hi jarvis" vs "hey jarvis" (22%)
+	// but rejects genuinely different phrases like "hey guys" (67%)
+	if float64(dist)/float64(maxLen) > 0.4 {
+		return text
+	}
+
+	result := strings.TrimRight(trimmed[:cutPos], " ,.\t-")
+	if result == "" {
+		return ""
+	}
+	return result
+}
+
+// findLastNWordsPos returns the byte position where the last n words start in text.
+func findLastNWordsPos(text string, n int) (int, bool) {
+	wordCount := 0
+	i := len(text) - 1
+
+	for i >= 0 && wordCount < n {
+		// Skip trailing non-letter/digit characters (punctuation, spaces)
+		for i >= 0 && !isWordChar(text[i]) {
+			i--
+		}
+		if i < 0 {
+			break
+		}
+		// Skip the word itself
+		for i >= 0 && isWordChar(text[i]) {
+			i--
+		}
+		wordCount++
+	}
+
+	if wordCount < n {
+		if wordCount == 0 {
+			return 0, false
+		}
+		return 0, true
+	}
+	return i + 1, true
+}
+
+func isWordChar(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') ||
+		(b >= '0' && b <= '9') || b == '\''
+}
+
+// normLetters returns only lowercase ASCII letters from s.
+func normLetters(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if r >= 'a' && r <= 'z' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func levenshtein(a, b string) int {
+	if len(a) == 0 {
+		return len(b)
+	}
+	if len(b) == 0 {
+		return len(a)
+	}
+
+	prev := make([]int, len(b)+1)
+	curr := make([]int, len(b)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+
+	for i := 1; i <= len(a); i++ {
+		curr[0] = i
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			curr[j] = min(curr[j-1]+1, prev[j]+1, prev[j-1]+cost)
+		}
+		prev, curr = curr, prev
+	}
+
+	return prev[len(b)]
 }

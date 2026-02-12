@@ -24,7 +24,8 @@ type Config struct {
 }
 
 type ProcessingConfig struct {
-	Mode string `toml:"mode"` // "raw" (default) or "llm"
+	Mode       string `toml:"mode"`        // "raw" (default) or "llm"
+	WakePhrase string `toml:"wake_phrase"` // Wake phrase to strip from transcription (e.g. "hey jarvis")
 }
 
 type LLMConfig struct {
@@ -115,9 +116,12 @@ func (c *Config) ToLLMConfig() llm.Config {
 		CustomPrompt: c.LLM.CustomPrompt,
 	}
 
-	// Check for API key in environment variable if not in config
+	// Check for API key: env var, then fall back to transcription API key
 	if config.APIKey == "" {
 		config.APIKey = os.Getenv("OPENAI_API_KEY")
+	}
+	if config.APIKey == "" {
+		config.APIKey = c.Transcription.APIKey
 	}
 
 	// Default level to moderate if not set
@@ -275,13 +279,16 @@ func (c *Config) Validate() error {
 		if c.LLM.Level == "custom" && c.LLM.CustomPrompt == "" {
 			return fmt.Errorf("llm.custom_prompt is required when llm.level is 'custom'")
 		}
-		// Check for API key
+		// Check for API key: config, env var, then transcription API key
 		apiKey := c.LLM.APIKey
 		if apiKey == "" {
 			apiKey = os.Getenv("OPENAI_API_KEY")
 		}
 		if apiKey == "" {
-			return fmt.Errorf("LLM API key required when processing.mode is 'llm': not found in config (llm.api_key) or environment variable (OPENAI_API_KEY)")
+			apiKey = c.Transcription.APIKey
+		}
+		if apiKey == "" {
+			return fmt.Errorf("LLM API key required when processing.mode is 'llm': not found in config (llm.api_key), environment variable (OPENAI_API_KEY), or transcription.api_key")
 		}
 	}
 
@@ -440,6 +447,7 @@ func SaveDefaultConfig() error {
 # Post-Transcription Processing Configuration
 [processing]
   mode = "raw"                 # Processing mode: "raw" (direct transcription) or "llm" (AI cleanup)
+  wake_phrase = ""             # Wake phrase to strip from transcription (e.g. "hey jarvis")
 
 # LLM Configuration (used when processing.mode = "llm")
 [llm]

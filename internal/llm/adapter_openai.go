@@ -52,10 +52,9 @@ func getPromptForLevel(level string, customPrompt string) string {
 	if level == "custom" && customPrompt != "" {
 		return customPrompt
 	}
-	if prompt, ok := levelPrompts[level]; ok {
-		return prompt
+	if p, ok := levelPrompts[level]; ok {
+		return p
 	}
-	// Default to moderate if level not found
 	return levelPrompts["moderate"]
 }
 

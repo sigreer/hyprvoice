@@ -23,7 +23,7 @@ func TestNewInjector(t *testing.T) {
 
 	// Test that the injector works with the expected config
 	ctx := context.Background()
-	err := injector.Inject(ctx, "test")
+	err := injector.Inject(ctx, "test", "")
 	// We expect this to fail due to missing external tools, but it should be the right type of error
 	if err != nil {
 		t.Logf("Injector created successfully (failed as expected due to missing tools): %v", err)
@@ -44,7 +44,7 @@ func TestNewInjector_DefaultsToClipboard(t *testing.T) {
 
 	// Should default to clipboard backend - just test it works
 	ctx := context.Background()
-	err := injector.Inject(ctx, "test")
+	err := injector.Inject(ctx, "test", "")
 	// Will fail if no clipboard tools, but that's ok
 	if err != nil {
 		t.Logf("Injection failed (expected without tools): %v", err)
@@ -122,7 +122,7 @@ func TestInjector_Inject(t *testing.T) {
 			injector := NewInjector(tt.config)
 			ctx := context.Background()
 
-			err := injector.Inject(ctx, tt.text)
+			err := injector.Inject(ctx, tt.text, "")
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Inject() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -213,7 +213,7 @@ func TestInjector_ClipboardMode(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	err := injector.Inject(ctx, "test clipboard text")
+	err := injector.Inject(ctx, "test clipboard text", "")
 	if err != nil {
 		t.Logf("Clipboard injection failed (expected if clipboard tools not available): %v", err)
 		return
@@ -233,7 +233,7 @@ func TestInjector_WtypeMode(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	err := injector.Inject(ctx, "test typing text")
+	err := injector.Inject(ctx, "test typing text", "")
 	if err != nil {
 		t.Logf("Wtype injection failed (expected if wtype not available): %v", err)
 		return
@@ -255,7 +255,7 @@ func TestInjector_FallbackChain(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	err := injector.Inject(ctx, "test fallback text")
+	err := injector.Inject(ctx, "test fallback text", "")
 	if err != nil {
 		t.Logf("Fallback injection failed (expected if all tools not available): %v", err)
 		return
@@ -274,7 +274,7 @@ func TestInjector_EmptyText(t *testing.T) {
 	injector := NewInjector(config)
 	ctx := context.Background()
 
-	err := injector.Inject(ctx, "")
+	err := injector.Inject(ctx, "", "")
 	if err == nil {
 		t.Errorf("Inject() should fail with empty text")
 		return

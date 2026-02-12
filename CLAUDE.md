@@ -4,7 +4,7 @@
 
 **Increment the version for every push.** The version is set at build time via ldflags in `cmd/hyprvoice/main.go`.
 
-Current version: **0.2.2**
+Current version: **0.3.1**
 
 Use semantic versioning:
 - Patch (0.2.0 → 0.2.1): Bug fixes
